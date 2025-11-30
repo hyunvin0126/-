@@ -1,0 +1,1233 @@
+# -*- coding: utf-8 -*-
+"""
+중국인 유학생 월천이의 한국 취업 도우미
+- 한국어/중국어 모드 지원
+- 직무 추천, 지원 현황, 채용공고 크롤링, 명언
+- 공공기관 어학 기준 크롤링 (TOEIC 공식 사이트)
+"""
+
+from __future__ import annotations
+from dataclasses import dataclass, field
+from typing import List, Dict, Any
+import random
+import requests
+from bs4 import BeautifulSoup
+import csv
+import time
+import re
+from datetime import datetime
+
+# ==========================
+# 전역 언어 설정 및 텍스트
+# ==========================
+
+LANG = "ko"  # ko 또는 zh
+
+TEXT: Dict[str, Dict[str, str]] = {
+    "ko": {
+        "app_title": "중국인 유학생 월천이의 한국 취업 도우미",
+        "menu_1": "1. 월천이 프로필 & 어학 점수 입력",
+        "menu_2": "2. 직무 추천 + 직무별 역량 분석",
+        "menu_3": "3. 지원 현황 & 공기업 토익 컷 체크",
+        "menu_4": "4. 최신 채용공고 보기 (실시간 크롤링, 중국인 유학생 필터)",
+        "menu_5": "5. 커리어/성공 명언 랜덤 보기",
+        "menu_6": "6. 언어 설정 (한국어/중국어)",
+        "menu_0": "0. 종료",
+        "prompt_choice": "메뉴를 선택하세요: ",
+        "invalid_choice": "0~6 사이의 번호를 입력하세요.",
+        "exit_msg": "프로그램을 종료합니다. 수고하셨습니다!",
+
+        # 언어 설정
+        "lang_menu_title": "[언어 설정]",
+        "lang_current": "현재 언어: ",
+        "lang_ko": "한국어",
+        "lang_zh": "중국어",
+        "lang_select": "변경할 언어를 선택하세요 (1: 한국어, 2: 중국어, 0: 돌아가기): ",
+        "lang_changed_ko": "언어가 '한국어'로 변경되었습니다.",
+        "lang_changed_zh": "언어가 '중국어'로 변경되었습니다.",
+
+        # 기능 타이틀
+        "profile_title": "[월천이 프로필 & 어학 점수 입력]",
+        "jobs_title": "[직무 추천 + 직무별 역량 분석]",
+        "apply_title": "[지원 현황 & 공기업 토익 컷 체크]",
+        "crawl_title": "[최신 채용공고 보기 (실시간 크롤링, 중국인 유학생 필터)]",
+        "quote_title": "[커리어/성공 명언]",
+
+        "press_enter": "계속하려면 Enter를 누르세요...",
+
+        # 프로필 관련
+        "ask_name": "이름(닉네임) 입력: ",
+        "ask_major_strength": "전공 강점(예: 생산, 품질, 데이터 등, 쉼표로 구분): ",
+        "ask_toeic": "TOEIC 점수 입력 (없으면 0): ",
+        "ask_topik": "TOPIK(한국어능력시험) 급수 입력 (예: 3, 4, 5, 6 / 없으면 0): ",
+        "ask_korean_level": "한국어 회화 자신감 (1~5): ",
+        "ask_chinese_level": "중국어 자신감 (1~5, 모국어면 5): ",
+        "ask_coding_level": "코딩/데이터(파이썬) 자신감 (1~5): ",
+        "ask_prefer_fields": "관심 직무 분야 (예: 생산, 물류, 데이터, 마케팅/해외영업 / 쉼표로 구분): ",
+        "profile_saved": "프로필이 저장되었습니다.",
+
+        # 직무 추천 관련
+        "jobs_no_profile": "먼저 1번 메뉴에서 프로필을 입력해주세요.",
+        "jobs_recommend_title": "\n[추천 직무 목록]",
+        "jobs_select_prompt": "자세히 보고 싶은 직무 번호를 선택하세요 (0: 돌아가기): ",
+        "jobs_detail_title": "\n[선택한 직무의 역량 분석]",
+
+        # 역량 이름
+        "skill_korean": "한국어",
+        "skill_chinese": "중국어",
+        "skill_english": "영어(TOEIC)",
+        "skill_major": "전공/산공",
+        "skill_coding": "코딩/데이터",
+
+        "level_strong": "강점",
+        "level_normal": "보통",
+        "level_weak": "보완 필요",
+
+        # 지원 현황 / 공기업
+        "apply_menu_title": "[지원 현황 & 공기업 토익 컷 체크]",
+        "apply_menu_1": "1) 지원 내역 추가",
+        "apply_menu_2": "2) 지원 내역 보기",
+        "apply_menu_3": "3) 공기업 토익 컷 체크",
+        "apply_menu_4": "4) 공공기관 어학 기준 크롤링 (TOEIC 사이트)",
+        "apply_menu_0": "0) 돌아가기",
+
+        "ask_company": "회사 이름: ",
+        "ask_job_title": "지원 직무명: ",
+        "ask_company_type": "회사 유형 (공기업/대기업/중소/외국계 등): ",
+        "ask_status": "현재 지원 상태 (지원완료/서류합격/면접/불합격 등): ",
+        "ask_is_public": "공기업인가요? (y/n): ",
+        "ask_toeic_cut": "해당 회사(공기업)의 토익 컷 점수 (예: 700, 모르면 0): ",
+        "ask_foreigner_friendly": "외국인/유학생 지원 가능 기업인가요? (y/n): ",
+        "apply_added": "지원 내역이 추가되었습니다.",
+
+        "apply_list_title": "\n[지원 내역]",
+        "apply_empty": "현재 등록된 지원 내역이 없습니다.",
+
+        "toeic_needed": "먼저 프로필의 TOEIC 점수를 입력해야 합니다.",
+        "check_public_result_title": "\n[공기업 토익 컷 체크 결과]",
+
+        # 크롤링 안내
+        "crawl_list_title": "\n[중국인 유학생에게 유리한 채용공고]",
+        "crawl_no_match": "조건에 맞는 공고가 없습니다.",
+    },
+    "zh": {
+        "app_title": "中国留学生月川的韩国求职助手",
+        "menu_1": "1. 月川个人资料 & 语言成绩输入",
+        "menu_2": "2. 职位推荐 + 职位能力分析",
+        "menu_3": "3. 投递记录 & 公企业 TOEIC 核对",
+        "menu_4": "4. 最新招聘信息查看（实时爬取，适合中国留学生）",
+        "menu_5": "5. 职业/成功名言 随机查看",
+        "menu_6": "6. 语言设置（韩文/中文）",
+        "menu_0": "0. 退出",
+        "prompt_choice": "请选择菜单: ",
+        "invalid_choice": "请输入 0~6 之间的数字。",
+        "exit_msg": "程序结束，辛苦了！",
+
+        # 언어 설정
+        "lang_menu_title": "[语言设置]",
+        "lang_current": "当前语言: ",
+        "lang_ko": "韩文",
+        "lang_zh": "中文",
+        "lang_select": "请选择语言 (1: 韩文, 2: 中文, 0: 返回): ",
+        "lang_changed_ko": '语言已切换为"韩文"。',
+        "lang_changed_zh": '语言已切换为"中文"。',
+
+        # 기능 타이틀
+        "profile_title": "[月川个人资料 & 语言成绩输入]",
+        "jobs_title": "[职位推荐 + 职位能力分析]",
+        "apply_title": "[投递记录 & 公企业 TOEIC 核对]",
+        "crawl_title": "[最新招聘信息查看（实时爬取，适合中国留学生）]",
+        "quote_title": "[职业/成功名言]",
+
+        "press_enter": "按 Enter 继续...",
+
+        # 프로필 관련
+        "ask_name": "请输入姓名/昵称: ",
+        "ask_major_strength": "专业优势（例如：生产，质量，数据等，用逗号分隔）: ",
+        "ask_toeic": "请输入 TOEIC 分数（没有则输入 0）: ",
+        "ask_topik": "请输入 TOPIK 等级（例如：3,4,5,6，没有则 0）: ",
+        "ask_korean_level": "韩语口语自信度 (1~5): ",
+        "ask_chinese_level": "中文自信度 (1~5，本国语言一般为 5): ",
+        "ask_coding_level": "编程/数据(Python) 自信度 (1~5): ",
+        "ask_prefer_fields": "感兴趣的职位领域（例如：生产, 物流, 数据, 营销/海外销售 / 用逗号分隔）: ",
+        "profile_saved": "个人资料已保存。",
+
+        # 직무 추천 관련
+        "jobs_no_profile": "请先在菜单 1 中输入个人资料。",
+        "jobs_recommend_title": "\n[推荐职位列表]",
+        "jobs_select_prompt": "请选择想详细查看的职位编号 (0: 返回): ",
+        "jobs_detail_title": "\n[所选职位的能力分析]",
+
+        "skill_korean": "韩语",
+        "skill_chinese": "中文",
+        "skill_english": "英语(TOEIC)",
+        "skill_major": "专业/工管",
+        "skill_coding": "编程/数据",
+
+        "level_strong": "优势",
+        "level_normal": "一般",
+        "level_weak": "需要加强",
+
+        # 지원 현황 / 공기업
+        "apply_menu_title": "[投递记录 & 公企业 TOEIC 核对]",
+        "apply_menu_1": "1) 新增投递记录",
+        "apply_menu_2": "2) 查看投递记录",
+        "apply_menu_3": "3) 公企业 TOEIC 分数线检查",
+        "apply_menu_4": "4) 公共机构语言要求爬取(TOEIC 网站)",
+        "apply_menu_0": "0) 返回",
+
+        "ask_company": "公司名称: ",
+        "ask_job_title": "应聘职位: ",
+        "ask_company_type": "公司类型（公企业/大企业/中小/外企 等）: ",
+        "ask_status": "当前投递状态（已投/书面通过/面试中/未通过 等）: ",
+        "ask_is_public": "是否为公企业? (y/n): ",
+        "ask_toeic_cut": "该公企业的 TOEIC 分数线（例如：700，不清楚则 0）: ",
+        "ask_foreigner_friendly": "是否接受外国人/留学生? (y/n): ",
+        "apply_added": "投递记录已添加。",
+
+        "apply_list_title": "\n[投递记录]",
+        "apply_empty": "当前没有任何投递记录。",
+
+        "toeic_needed": "请先在个人资料中输入 TOEIC 分数。",
+        "check_public_result_title": "\n[公企业 TOEIC 分数线检查结果]",
+
+        "crawl_list_title": "\n[适合中国留学生的招聘信息]",
+        "crawl_no_match": "没有符合条件的招聘信息。",
+    }
+}
+
+
+def t(key: str) -> str:
+    """현재 언어(LANG)에 맞는 텍스트 가져오기."""
+    return TEXT[LANG].get(key, f"[{key}]")
+
+
+# ==========================
+# 데이터 모델 (클래스)
+# ==========================
+
+@dataclass
+class JobSeeker:
+    name: str = "월천이"
+    major_strengths: List[str] = field(default_factory=list)
+    toeic: int = 0
+    topik: int = 0
+    korean_level: int = 3  # 1~5
+    chinese_level: int = 5  # 1~5
+    coding_level: int = 3  # 1~5
+    prefer_fields: List[str] = field(default_factory=list)
+
+    def english_score_level(self) -> int:
+        """TOEIC 점수를 1~5 스케일로 변환 (단순화)."""
+        if self.toeic <= 0:
+            return 1
+        if self.toeic < 600:
+            return 2
+        if self.toeic < 750:
+            return 3
+        if self.toeic < 900:
+            return 4
+        return 5
+
+    def major_level(self) -> int:
+        """전공(산업경영/공학) 자신감을 1~5로 추정 (단순)."""
+        return 3 + min(len(self.major_strengths), 2)  # 최대 5
+
+
+@dataclass
+class JobPosting:
+    title: str
+    company: str
+    location: str
+    tags: List[str]
+    foreigner_friendly: bool = False
+
+
+@dataclass
+class Application:
+    company: str
+    job_title: str
+    company_type: str
+    status: str
+    is_public: bool
+    toeic_cut: int
+    foreigner_friendly: bool
+
+
+# ==========================
+# 공공기관 어학 기준 크롤러 (TOEIC 사이트)
+# ==========================
+
+class PublicInstitutionRecruitCrawler:
+    def __init__(self):
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                          'AppleWebKit/537.36 (KHTML, like Gecko) '
+                          'Chrome/91.0.4472.124 Safari/537.36'
+        }
+        self.results = []
+
+    def crawl_toeic_recruit_page(self):
+        """토익 공식 사이트의 채용정보 크롤링"""
+        url = "https://exam.toeic.co.kr/recruit/recruit.php"
+
+        try:
+            response = requests.get(url, headers=self.headers, timeout=10)
+            response.raise_for_status()
+            response.encoding = 'utf-8'
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            job_listings = soup.find_all('div', class_='recruit_list')
+            if not job_listings:
+                job_listings = soup.find_all('li', class_='list')
+
+            for job in job_listings:
+                try:
+                    company_elem = (
+                        job.find('strong')
+                        or job.find('h3')
+                        or job.find('div', class_='company')
+                    )
+                    company = company_elem.get_text(strip=True) if company_elem else "N/A"
+
+                    text = job.get_text()
+
+                    recruit_type = self.extract_recruit_type(text, job)
+                    period_elem = job.find('span', class_='period') or job.find(
+                        'p', class_='date'
+                    )
+                    period = (
+                        period_elem.get_text(strip=True)
+                        if period_elem
+                        else self.extract_period_from_text(text)
+                    )
+                    language_req = self.extract_language_requirements(text)
+                    department = self.extract_department(text, job)
+                    method = self.extract_recruit_method(text, job)
+
+                    self.results.append(
+                        {
+                            '기관명': company,
+                            '모집구분': recruit_type,
+                            '채용기간': period,
+                            '어학자격': language_req,
+                            '채용부문': department,
+                            '모집방법': method,
+                            '출처': 'TOEIC 공식 사이트',
+                        }
+                    )
+
+                except Exception as e:
+                    print(f"개별 공고 파싱 오류: {e}")
+                    continue
+
+            print(f"토익 공식 사이트에서 {len(job_listings)}개 공고 수집 완료")
+
+        except Exception as e:
+            print(f"토익 공식 사이트 크롤링 오류: {e}")
+
+    def extract_recruit_type(self, text, job_elem):
+        """모집구분 추출 (신입/경력/인턴/계약직 등)"""
+        type_elem = job_elem.find('span', class_='type') or job_elem.find(
+            'span', class_='badge'
+        )
+        if type_elem:
+            return type_elem.get_text(strip=True)
+
+        patterns = ['신입', '경력', '인턴', '계약직', '무기계약직', '정규직', '파견직']
+        for pattern in patterns:
+            if pattern in text:
+                return pattern
+
+        return "N/A"
+
+    def extract_period_from_text(self, text):
+        """텍스트에서 채용기간 추출"""
+        pattern = r'\d{4}\.\d{1,2}\.\d{1,2}\s*~\s*\d{4}\.\d{1,2}\.\d{1,2}'
+        match = re.search(pattern, text)
+        if match:
+            return match.group(0)
+
+        period_keywords = ['상반기', '하반기', '연중', '수시']
+        for keyword in period_keywords:
+            if keyword in text:
+                return keyword
+
+        return "N/A"
+
+    def extract_language_requirements(self, text):
+        """어학자격 요구사항 추출"""
+        requirements = []
+
+        toeic_patterns = [
+            r'TOEIC\s*(\d{3,4})\s*점?\s*(이상|필수|우대)?',
+            r'토익\s*(\d{3,4})\s*점?\s*(이상|필수|우대)?',
+        ]
+
+        for pattern in toeic_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                score = match.group(1)
+                condition = match.group(2) if match.group(2) else ""
+                requirements.append(f"TOEIC {score}점 {condition}".strip())
+                break
+
+        speaking_patterns = [
+            r'TOEIC\s*Speaking\s*([A-Z]{1,3}\d*|[IA][LMH]\d?|\d{3})\s*(이상|필수|우대)?',
+            r'토익\s*스피킹\s*([A-Z]{1,3}\d*|[IA][LMH]\d?|\d{3})\s*(이상|필수|우대)?',
+        ]
+
+        for pattern in speaking_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                score = match.group(1)
+                condition = match.group(2) if match.group(2) else ""
+                requirements.append(f"TOEIC Speaking {score} {condition}".strip())
+                break
+
+        if 'TEPS' in text:
+            teps_match = re.search(
+                r'TEPS\s*(\d{3})\s*(이상|필수|우대)?', text
+            )
+            if teps_match:
+                requirements.append(
+                    f"TEPS {teps_match.group(1)} {teps_match.group(2) or ''}".strip()
+                )
+
+        if 'IELTS' in text:
+            ielts_match = re.search(
+                r'IELTS\s*(\d\.?\d?)\s*(이상|필수|우대)?', text
+            )
+            if ielts_match:
+                requirements.append(
+                    f"IELTS {ielts_match.group(1)} {ielts_match.group(2) or ''}".strip()
+                )
+
+        return ' / '.join(requirements) if requirements else "N/A"
+
+    def extract_department(self, text, job_elem):
+        """채용부문 추출"""
+        dept_elem = job_elem.find('span', class_='dept') or job_elem.find(
+            'div', class_='department'
+        )
+        if dept_elem:
+            return dept_elem.get_text(strip=True)
+
+        dept_keywords = [
+            '사무직',
+            '기술직',
+            '연구직',
+            '영업직',
+            '관리직',
+            '사무',
+            '기술',
+            '연구',
+            '영업',
+            '관리',
+            'IT',
+            '개발',
+            '인사',
+            '회계',
+            '마케팅',
+        ]
+        for keyword in dept_keywords:
+            if keyword in text:
+                return keyword
+
+        return "N/A"
+
+    def extract_recruit_method(self, text, job_elem):
+        """모집방법 추출"""
+        method_elem = job_elem.find('span', class_='method') or job_elem.find(
+            'div', class_='apply_method'
+        )
+        if method_elem:
+            return method_elem.get_text(strip=True)
+
+        if '서류전형' in text and '면접' in text:
+            return "서류전형 + 면접"
+        elif '서류전형' in text:
+            return "서류전형"
+        elif '공개채용' in text:
+            return "공개채용"
+        elif '수시채용' in text:
+            return "수시채용"
+        elif '특별채용' in text:
+            return "특별채용"
+
+        return "N/A"
+
+    def add_known_public_institutions(self):
+        """알려진 공공기관 어학 기준 데이터 추가"""
+        known_data = [
+            {
+                '기관명': '한국전력공사',
+                '모집구분': '신입',
+                '채용기간': '상반기/하반기',
+                '어학자격': 'TOEIC 700점 필수 (서류 만점: 사무직 850점, 기술직 800점)',
+                '채용부문': '사무직/기술직',
+                '모집방법': '공개채용 (서류전형 + 면접)',
+                '출처': '2024-2025 채용 공고',
+            },
+            {
+                '기관명': '한국수력원자력',
+                '모집구분': '신입',
+                '채용기간': '연중',
+                '어학자격': 'TOEIC 700점 필수 (서류 만점: 850점)',
+                '채용부문': '기술직',
+                '모집방법': '공개채용',
+                '출처': '2024 채용 공고',
+            },
+            {
+                '기관명': '한국서부발전',
+                '모집구분': '신입',
+                '채용기간': '연중',
+                '어학자격': 'TOEIC 만점 기준 900점',
+                '채용부문': '기술직',
+                '모집방법': '공개채용',
+                '출처': '2024 채용 공고',
+            },
+            {
+                '기관명': '국민연금공단',
+                '모집구분': '신입',
+                '채용기간': '연중',
+                '어학자격': 'TOEIC 700점 필수 (700점 이상 동점)',
+                '채용부문': '사무직',
+                '모집방법': '공개채용',
+                '출처': '2024 채용 공고',
+            },
+            {
+                '기관명': '국민건강보험공단',
+                '모집구분': '신입',
+                '채용기간': '연중',
+                '어학자격': 'TOEIC 700점 필수 (700점 이상 동점)',
+                '채용부문': '사무직',
+                '모집방법': '공개채용',
+                '출처': '2024 채용 공고',
+            },
+            {
+                '기관명': '한국수자원공사',
+                '모집구분': '신입',
+                '채용기간': '연중',
+                '어학자격': 'TOEIC 900점 이상 (기술직 포함)',
+                '채용부문': '사무직/기술직',
+                '모집방법': '공개채용',
+                '출처': '2024 채용 공고',
+            },
+        ]
+        self.results.extend(known_data)
+        print(f"알려진 공공기관 {len(known_data)}개 데이터 추가 완료")
+
+    def save_to_csv(self, filename=None):
+        """결과를 CSV 파일로 저장"""
+        if filename is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"공공기관_채용정보_{timestamp}.csv"
+
+        if not self.results:
+            print("저장할 데이터가 없습니다.")
+            return
+
+        with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
+            fieldnames = [
+                '기관명',
+                '모집구분',
+                '채용기간',
+                '어학자격',
+                '채용부문',
+                '모집방법',
+                '출처',
+            ]
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in self.results:
+                writer.writerow(row)
+
+        print(f"\n✅ CSV 파일 저장 완료: {filename}")
+        print(f"총 {len(self.results)}개의 데이터 수집")
+
+    def run(self):
+        """크롤러 실행"""
+        print("=" * 60)
+        print("공공기관 채용/어학 기준 크롤러 시작")
+        print("=" * 60)
+
+        print("\n[1/2] 토익 공식 사이트 크롤링 중...")
+        self.crawl_toeic_recruit_page()
+        time.sleep(2)
+
+        print("\n[2/2] 알려진 공공기관 데이터 추가 중...")
+        self.add_known_public_institutions()
+
+        print("\n[완료] CSV 파일 저장 중...")
+        self.save_to_csv()
+
+        print("\n" + "=" * 60)
+        print("수집된 데이터 미리보기 (처음 5개)")
+        print("=" * 60)
+        for i, item in enumerate(self.results[:5], 1):
+            print(f"\n{i}. {item['기관명']}")
+            print(f"   - 모집구분: {item['모집구분']}")
+            print(f"   - 채용기간: {item['채용기간']}")
+            print(f"   - 어학자격: {item['어학자격']}")
+            print(f"   - 채용부문: {item['채용부문']}")
+            print(f"   - 모집방법: {item['모집방법']}")
+
+
+# ==========================
+# 사람인 채용공고 크롤러 (JobPosting 용)
+# ==========================
+
+class SaraminJobCrawler:
+    """사람인에서 채용공고를 가져와 JobPosting 리스트로 만들어주는 클래스"""
+
+    def __init__(self):
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                          'AppleWebKit/537.36 (KHTML, like Gecko) '
+                          'Chrome/120.0.0.0 Safari/537.36'
+        }
+        self.jobs: List[JobPosting] = []
+
+    def crawl(self, keyword: str = "중국어", pages: int = 1):
+        """
+        사람인 검색 결과에서 채용공고 크롤링
+        - keyword: 검색어 (예: '중국어', '무역', '데이터')
+        - pages: 몇 페이지까지 볼지 (1~3 정도 추천)
+        """
+        base = (
+            "https://www.saramin.co.kr/zf_user/search/recruit"
+            "?searchType=search"
+            f"&searchword={keyword}"
+            "&recruitPage={page}"
+            "&recruitSort=reg_dt"
+            "&recruitPageCount=20"
+        )
+
+        for page in range(1, pages + 1):
+            url = base.format(page=page)
+            try:
+                resp = requests.get(url, headers=self.headers, timeout=10)
+                resp.raise_for_status()
+                soup = BeautifulSoup(resp.text, "html.parser")
+
+                items = soup.select("div.item_recruit")
+                if not items:
+                    print(f"⚠️ {page}페이지에서 공고를 찾지 못했습니다.")
+                    continue
+
+                for item in items:
+                    try:
+                        corp_tag = item.select_one("strong.corp_name a")
+                        company = corp_tag.get_text(strip=True) if corp_tag else "정보 없음"
+
+                        title_tag = item.select_one("h2.job_tit a")
+                        title = title_tag.get_text(strip=True) if title_tag else "정보 없음"
+
+                        cond_spans = item.select("div.job_condition span")
+                        cond_texts = [c.get_text(strip=True) for c in cond_spans]
+                        location = cond_texts[0] if cond_texts else "지역 정보 없음"
+                        tags = cond_texts[1:] if len(cond_texts) > 1 else []
+
+                        full_text = f"{company} {title}".lower()
+                        foreigner_friendly = any(
+                            kw in full_text
+                            for kw in ["중국", "중국어", "chinese", "외국인", "유학생"]
+                        )
+
+                        self.jobs.append(
+                            JobPosting(
+                                title=title,
+                                company=company,
+                                location=location,
+                                tags=tags,
+                                foreigner_friendly=foreigner_friendly,
+                            )
+                        )
+                    except Exception as e:
+                        print(f"⚠️ 개별 공고 파싱 오류: {e}")
+                        continue
+
+                print(f"✅ 사람인 {page}페이지 크롤링 완료 (누적 {len(self.jobs)}개)")
+                time.sleep(1)
+
+            except Exception as e:
+                print(f"❌ 사람인 {page}페이지 요청 오류: {e}")
+                continue
+
+
+# 전역 상태
+job_seeker = JobSeeker()
+applications: List[Application] = []
+
+
+# 직무 정의: 분야 + 가중치
+JOB_ROLES: Dict[str, Dict[str, Any]] = {
+    "생산관리": {
+        "field": "생산",
+        "weights": {
+            "korean": 0.2,
+            "chinese": 0.1,
+            "english": 0.1,
+            "major": 0.4,
+            "coding": 0.2,
+        },
+    },
+    "품질관리": {
+        "field": "생산",
+        "weights": {
+            "korean": 0.25,
+            "chinese": 0.05,
+            "english": 0.1,
+            "major": 0.4,
+            "coding": 0.2,
+        },
+    },
+    "물류/SCM 기획": {
+        "field": "물류",
+        "weights": {
+            "korean": 0.25,
+            "chinese": 0.2,
+            "english": 0.2,
+            "major": 0.25,
+            "coding": 0.1,
+        },
+    },
+    "해외 물류 운영(중국)": {
+        "field": "물류",
+        "weights": {
+            "korean": 0.25,
+            "chinese": 0.3,
+            "english": 0.2,
+            "major": 0.15,
+            "coding": 0.1,
+        },
+    },
+    "데이터 분석": {
+        "field": "데이터",
+        "weights": {
+            "korean": 0.15,
+            "chinese": 0.05,
+            "english": 0.2,
+            "major": 0.25,
+            "coding": 0.35,
+        },
+    },
+    "BI/데이터 리포팅": {
+        "field": "데이터",
+        "weights": {
+            "korean": 0.25,
+            "chinese": 0.05,
+            "english": 0.2,
+            "major": 0.25,
+            "coding": 0.25,
+        },
+    },
+    "해외영업(중국 담당)": {
+        "field": "마케팅/해외영업",
+        "weights": {
+            "korean": 0.25,
+            "chinese": 0.3,
+            "english": 0.2,
+            "major": 0.15,
+            "coding": 0.1,
+        },
+    },
+    "중국 마케팅": {
+        "field": "마케팅/해외영업",
+        "weights": {
+            "korean": 0.3,
+            "chinese": 0.3,
+            "english": 0.1,
+            "major": 0.1,
+            "coding": 0.2,
+        },
+    },
+}
+
+
+# ==========================
+# 1. 프로필 & 어학 점수 입력
+# ==========================
+
+def handle_profile() -> None:
+    global job_seeker
+    print("\n" + t("profile_title"))
+
+    name = input(t("ask_name"))
+    major_str = input(t("ask_major_strength"))
+    toeic_str = input(t("ask_toeic"))
+    topik_str = input(t("ask_topik"))
+    korean_str = input(t("ask_korean_level"))
+    chinese_str = input(t("ask_chinese_level"))
+    coding_str = input(t("ask_coding_level"))
+    prefer_str = input(t("ask_prefer_fields"))
+
+    def to_int_safe(s: str, default: int = 0) -> int:
+        try:
+            return int(s)
+        except ValueError:
+            return default
+
+    toeic = to_int_safe(toeic_str, 0)
+    topik = to_int_safe(topik_str, 0)
+    korean = min(max(to_int_safe(korean_str, 3), 1), 5)
+    chinese = min(max(to_int_safe(chinese_str, 5), 1), 5)
+    coding = min(max(to_int_safe(coding_str, 3), 1), 5)
+
+    major_strengths = [s.strip() for s in major_str.split(",") if s.strip()]
+    prefer_fields = [s.strip() for s in prefer_str.split(",") if s.strip()]
+
+    job_seeker = JobSeeker(
+        name=name or "월천이",
+        major_strengths=major_strengths,
+        toeic=toeic,
+        topik=topik,
+        korean_level=korean,
+        chinese_level=chinese,
+        coding_level=coding,
+        prefer_fields=prefer_fields,
+    )
+
+    print("\n" + t("profile_saved") + "\n")
+    input(t("press_enter"))
+
+
+# ==========================
+# 2. 직무 추천 + 역량 분석
+# ==========================
+
+def handle_jobs() -> None:
+    if (
+        not job_seeker.major_strengths
+        and job_seeker.toeic == 0
+        and job_seeker.topik == 0
+        and not job_seeker.prefer_fields
+    ):
+        print("\n" + t("jobs_no_profile"))
+        input(t("press_enter"))
+        return
+
+    print("\n" + t("jobs_title"))
+
+    fields = sorted({meta["field"] for meta in JOB_ROLES.values()})
+    print("\n[직무 분야 선택]")
+    for idx, field_name in enumerate(fields, start=1):
+        print(f"{idx}. {field_name}")
+    print("0. 돌아가기\n")
+
+    while True:
+        choice = input("보고 싶은 직무 분야 번호를 선택하세요: ").strip()
+        if choice == "0":
+            return
+        try:
+            f_idx = int(choice) - 1
+        except ValueError:
+            print(t("invalid_choice"))
+            continue
+
+        if 0 <= f_idx < len(fields):
+            selected_field = fields[f_idx]
+            break
+        else:
+            print(t("invalid_choice"))
+
+    scores = []
+    for role_name, meta in JOB_ROLES.items():
+        if meta["field"] != selected_field:
+            continue
+        weights = meta["weights"]
+        score = calc_job_match_score(weights, job_seeker)
+        scores.append((role_name, score, weights))
+
+    if not scores:
+        print("\n해당 분야에 등록된 직무가 없습니다.\n")
+        input(t("press_enter"))
+        return
+
+    scores.sort(key=lambda x: x[1], reverse=True)
+
+    print(t("jobs_recommend_title"))
+    print(f"선택한 분야: {selected_field}\n")
+    for idx, (role, sc, _) in enumerate(scores, start=1):
+        print(f"{idx}. {role}  (매칭 점수: {sc:.1f})")
+    print()
+
+    while True:
+        choice = input(t("jobs_select_prompt")).strip()
+        if choice == "0":
+            break
+        try:
+            idx = int(choice) - 1
+        except ValueError:
+            print(t("invalid_choice"))
+            continue
+
+        if 0 <= idx < len(scores):
+            role_name, _, weights = scores[idx]
+            show_job_detail(role_name, weights, job_seeker)
+            break
+        else:
+            print(t("invalid_choice"))
+
+    input(t("press_enter"))
+
+
+def calc_job_match_score(weights: Dict[str, float], seeker: JobSeeker) -> float:
+    """직무별 가중치를 기반으로 0~100 매칭 점수 계산."""
+    korean = seeker.korean_level
+    chinese = seeker.chinese_level
+    english = seeker.english_score_level()
+    major = seeker.major_level()
+    coding = seeker.coding_level
+
+    total = 0.0
+    total_weight = 0.0
+
+    total += korean * weights.get("korean", 0)
+    total_weight += weights.get("korean", 0)
+
+    total += chinese * weights.get("chinese", 0)
+    total_weight += weights.get("chinese", 0)
+
+    total += english * weights.get("english", 0)
+    total_weight += weights.get("english", 0)
+
+    total += major * weights.get("major", 0)
+    total_weight += weights.get("major", 0)
+
+    total += coding * weights.get("coding", 0)
+    total_weight += weights.get("coding", 0)
+
+    if total_weight == 0:
+        return 0.0
+
+    avg = total / total_weight  # 1~5 범위
+    return avg / 5.0 * 100.0   # 0~100
+
+
+def show_job_detail(role_name: str, weights: Dict[str, float], seeker: JobSeeker) -> None:
+    """선택한 직무에 대해 역량별 분석 출력."""
+    print("\n" + t("jobs_detail_title"))
+    print(f"- 직무 이름 / 职位: {role_name}\n")
+
+    skill_values = {
+        "korean": seeker.korean_level,
+        "chinese": seeker.chinese_level,
+        "english": seeker.english_score_level(),
+        "major": seeker.major_level(),
+        "coding": seeker.coding_level,
+    }
+
+    skill_names = {
+        "korean": t("skill_korean"),
+        "chinese": t("skill_chinese"),
+        "english": t("skill_english"),
+        "major": t("skill_major"),
+        "coding": t("skill_coding"),
+    }
+
+    for key, value in skill_values.items():
+        w = weights.get(key, 0.0)
+        if w <= 0:
+            continue
+
+        if value >= 4:
+            level = t("level_strong")
+        elif value >= 3:
+            level = t("level_normal")
+        else:
+            level = t("level_weak")
+
+        print(f"- {skill_names[key]}: {value}/5  (가중치: {w:.2f}) → {level}")
+    print()
+
+
+# ==========================
+# 3. 지원 현황 & 공기업 토익 컷 체크
+# ==========================
+
+def handle_apply() -> None:
+    while True:
+        print("\n" + t("apply_menu_title"))
+        print(t("apply_menu_1"))
+        print(t("apply_menu_2"))
+        print(t("apply_menu_3"))
+        print(t("apply_menu_4"))
+        print(t("apply_menu_0"))
+
+        choice = input(t("prompt_choice")).strip()
+
+        if choice == "1":
+            add_application()
+        elif choice == "2":
+            list_applications()
+        elif choice == "3":
+            check_public_toeic()
+        elif choice == "4":
+            handle_public_institution_crawl()
+        elif choice == "0":
+            break
+        else:
+            print(t("invalid_choice"))
+
+
+def add_application() -> None:
+    print()
+    company = input(t("ask_company"))
+    job_title = input(t("ask_job_title"))
+    company_type = input(t("ask_company_type"))
+    status = input(t("ask_status"))
+    is_public_str = input(t("ask_is_public")).strip().lower()
+    is_public = is_public_str == "y"
+    toeic_cut_str = input(t("ask_toeic_cut"))
+    foreigner_str = input(t("ask_foreigner_friendly")).strip().lower()
+    foreigner_friendly = foreigner_str == "y"
+
+    try:
+        toeic_cut = int(toeic_cut_str)
+    except ValueError:
+        toeic_cut = 0
+
+    app = Application(
+        company=company,
+        job_title=job_title,
+        company_type=company_type,
+        status=status,
+        is_public=is_public,
+        toeic_cut=toeic_cut,
+        foreigner_friendly=foreigner_friendly,
+    )
+    applications.append(app)
+    print("\n" + t("apply_added") + "\n")
+    input(t("press_enter"))
+
+
+def list_applications() -> None:
+    print(t("apply_list_title"))
+    if not applications:
+        print(t("apply_empty") + "\n")
+        input(t("press_enter"))
+        return
+
+    for idx, app in enumerate(applications, start=1):
+        print(f"{idx}. {app.company} / {app.job_title}")
+        print(f"   - 회사 유형: {app.company_type}")
+        print(f"   - 상태: {app.status}")
+        print(f"   - 공기업 여부: {'예' if app.is_public else '아니오'}")
+        print(f"   - 외국인/유학생 가능: {'예' if app.foreigner_friendly else '아니오'}")
+        if app.is_public and app.toeic_cut > 0:
+            print(f"   - 토익 컷: {app.toeic_cut}")
+        print()
+    input(t("press_enter"))
+
+
+def check_public_toeic() -> None:
+    if job_seeker.toeic <= 0:
+        print("\n" + t("toeic_needed") + "\n")
+        input(t("press_enter"))
+        return
+
+    print(t("check_public_result_title"))
+    any_public = False
+
+    for app in applications:
+        if app.is_public and app.toeic_cut > 0:
+            any_public = True
+            passed = job_seeker.toeic >= app.toeic_cut
+            if LANG == "zh":
+                result = "有希望" if passed else "未达到分数线"
+            else:
+                result = "통과 가능" if passed else "컷 미달"
+            print(
+                f"- {app.company} / {app.job_title}: "
+                f"지원자 TOEIC {job_seeker.toeic} vs 컷 {app.toeic_cut} → {result}"
+            )
+
+    if not any_public:
+        print("공기업/公企业 지원 내역이 없거나 토익 컷 정보가 없습니다.")
+
+    print()
+    input(t("press_enter"))
+
+
+def handle_public_institution_crawl() -> None:
+    """TOEIC 공식 사이트 + 정리된 표 데이터로 공공기관 어학 기준 확인"""
+    print("\n[공공기관 어학 기준 크롤링]")
+    print(
+        "※ 학습/과제용으로, 서버 부하를 줄이기 위해 적당한 속도로 수집합니다.\n"
+    )
+
+    crawler = PublicInstitutionRecruitCrawler()
+    crawler.run()
+
+    if job_seeker.toeic > 0:
+        print("\n[내 TOEIC 점수와 간단 비교]")
+        my_score = job_seeker.toeic
+        for item in crawler.results[:10]:
+            req = item['어학자격']
+            match = re.search(r'TOEIC\s*(\d{3,4})', req)
+            if match:
+                required = int(match.group(1))
+                result = "충분" if my_score >= required else "부족"
+                print(
+                    f"- {item['기관명']} ({item['채용부문']}): "
+                    f"요구 {required}점 vs 내 점수 {my_score} → {result}"
+                )
+    else:
+        print("\n※ 내 TOEIC 점수를 1번 메뉴에서 입력하면 비교 결과도 보여줍니다.")
+
+    print()
+    input(t("press_enter"))
+
+
+# ==========================
+# 4. 최신 채용공고 (사람인 크롤링, 중국인 유학생 필터)
+# ==========================
+
+def handle_crawling() -> None:
+    """중국인 유학생에게 유리한 공고를 실시간 크롤링해서 보여주는 메뉴"""
+    print("\n" + t("crawl_title"))
+
+    keyword = input(
+        "검색 키워드 (예: 중국어, 무역, 데이터 / 기본값: 중국어): "
+    ).strip()
+    if not keyword:
+        keyword = "중국어"
+
+    pages_str = input("가져올 페이지 수 (1~3, 기본값: 1): ").strip()
+    try:
+        pages = int(pages_str)
+        pages = min(max(pages, 1), 3)
+    except ValueError:
+        pages = 1
+
+    print(f"\n🔍 사람인에서 '{keyword}'로 {pages}페이지 크롤링 중...\n")
+
+    crawler = SaraminJobCrawler()
+    crawler.crawl(keyword=keyword, pages=pages)
+
+    if not crawler.jobs:
+        print(t("crawl_no_match") + "\n")
+        input(t("press_enter"))
+        return
+
+    keywords = ["중국", "중국어", "chinese", "외국인", "유학생", "留学生"]
+    filtered: List[JobPosting] = []
+    for jp in crawler.jobs:
+        text = " ".join([jp.title, jp.company, jp.location] + jp.tags).lower()
+        if any(kw in text for kw in keywords) or jp.foreigner_friendly:
+            filtered.append(jp)
+
+    print(t("crawl_list_title"))
+    if not filtered:
+        print("※ 크롤링은 성공했지만, 중국/외국인 관련 키워드를 찾지 못했습니다.")
+        print("  → 전체 공고 일부만 보여드립니다.\n")
+        filtered = crawler.jobs
+
+    print(f"총 {len(filtered)}개의 공고를 찾았습니다.\n")
+
+    for idx, jp in enumerate(filtered[:20], start=1):
+        print(f"{idx}. {jp.company} - {jp.title}")
+        print(f"   - 근무지/지역: {jp.location}")
+        if jp.tags:
+            print(f"   - 조건/태그: {', '.join(jp.tags)}")
+        print(
+            f"   - 외국인/유학생 우대: "
+            f"{'예' if jp.foreigner_friendly else '아니오'}"
+        )
+        print()
+
+    input(t("press_enter"))
+
+
+# ==========================
+# 5. 명언 랜덤
+# ==========================
+
+def handle_quotes() -> None:
+    print("\n" + t("quote_title"))
+
+    quotes = [
+        ("성공은 준비된 자에게 온다.", "익명"),
+        ("천 리 길도 한 걸음부터.", "속담/谚语"),
+        ("실패는 성공의 어머니이다.", "속담/谚语"),
+        ("포기하지 않는 것이 결국 가장 큰 재능이다.", "익명"),
+        ("今天很残酷，明天更残酷，但后天很美好。", "马云"),
+        ("失败是成功之母。", "谚语"),
+        ("不积跬步，无以至千里。", "荀子"),
+        ("你现在的努力，是为了以后有更多的选择。", "익명/匿名"),
+    ]
+
+    q, author = random.choice(quotes)
+    print(f'\n"{q}" - {author}\n')
+    input(t("press_enter"))
+
+
+# ==========================
+# 6. 언어 설정
+# ==========================
+
+def handle_language_setting() -> None:
+    global LANG
+    print("\n" + t("lang_menu_title"))
+    current_lang_name = t("lang_ko") if LANG == "ko" else t("lang_zh")
+    print(t("lang_current") + current_lang_name)
+
+    while True:
+        choice = input(t("lang_select")).strip()
+        if choice == "1":
+            LANG = "ko"
+            print(t("lang_changed_ko"))
+            break
+        elif choice == "2":
+            LANG = "zh"
+            print(t("lang_changed_zh"))
+            break
+        elif choice == "0":
+            break
+        else:
+            print(t("invalid_choice"))
+
+
+# ==========================
+# 메인 루프
+# ==========================
+
+def main() -> None:
+    while True:
+        print("\n==========================================")
+        print(f"   [{t('app_title')}]")
+        print("==========================================")
+        print(t("menu_1"))
+        print(t("menu_2"))
+        print(t("menu_3"))
+        print(t("menu_4"))
+        print(t("menu_5"))
+        print(t("menu_6"))
+        print(t("menu_0"))
+        print("==========================================")
+
+        choice = input(t("prompt_choice")).strip()
+        if choice == "1":
+            handle_profile()
+        elif choice == "2":
+            handle_jobs()
+        elif choice == "3":
+            handle_apply()
+        elif choice == "4":
+            handle_crawling()
+        elif choice == "5":
+            handle_quotes()
+        elif choice == "6":
+            handle_language_setting()
+        elif choice == "0":
+            print("\n" + t("exit_msg") + "\n")
+            break
+        else:
+            print("\n" + t("invalid_choice"))
+
+
+if __name__ == "__main__":
+    main()
