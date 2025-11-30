@@ -3,7 +3,7 @@ pip install requests beautifulsoup4 pandas openpyxl
 
 """
 한국 대기업 채용공고 크롤러
-잡코리아, 사람인에서 대기업 채용 정보를 수집합니다.
+사람인에서 대기업 채용 정보를 수집합니다.
 """
 
 import requests
@@ -19,65 +19,6 @@ class JobCrawler:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
         self.jobs = []
-
-    def crawl_jobkorea(self, keyword="대기업", pages=3):
-        """잡코리아에서 채용공고 크롤링"""
-        print(f"🔍 잡코리아에서 '{keyword}' 검색 중...")
-
-        for page in range(1, pages + 1):
-            try:
-                # 대기업 필터: cotype=1,2,3 (대기업, 중견기업, 강소기업)
-                url = f"https://www.jobkorea.co.kr/Search/?stext={keyword}&tabType=recruit&Page_No={page}&cotype=1,2,3"
-
-                response = requests.get(url, headers=self.headers)
-                response.raise_for_status()
-                soup = BeautifulSoup(response.text, 'html.parser')
-
-                # 채용공고 리스트 찾기
-                job_list = soup.select('div.post-list-info')
-
-                for job in job_list:
-                    try:
-                        # 회사명
-                        company = job.select_one('a.name')
-                        company_name = company.text.strip() if company else "정보 없음"
-
-                        # 공고 제목
-                        title = job.select_one('a.title')
-                        job_title = title.text.strip() if title else "정보 없음"
-                        job_url = "https://www.jobkorea.co.kr" + title['href'] if title else ""
-
-                        # 경력/학력
-                        conditions = job.select('p.option span')
-                        experience = conditions[0].text.strip() if len(conditions) > 0 else "정보 없음"
-                        education = conditions[1].text.strip() if len(conditions) > 1 else "정보 없음"
-                        location = conditions[2].text.strip() if len(conditions) > 2 else "정보 없음"
-
-                        # 마감일
-                        deadline = job.select_one('span.date')
-                        deadline_text = deadline.text.strip() if deadline else "정보 없음"
-
-                        self.jobs.append({
-                            '출처': '잡코리아',
-                            '회사명': company_name,
-                            '공고제목': job_title,
-                            '경력': experience,
-                            '학력': education,
-                            '지역': location,
-                            '마감일': deadline_text,
-                            'URL': job_url,
-                            '수집일시': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        })
-                    except Exception as e:
-                        print(f"⚠️ 개별 공고 처리 오류: {e}")
-                        continue
-
-                print(f"✅ 잡코리아 {page}페이지 완료 ({len(self.jobs)}개)")
-                time.sleep(1)  # 서버 부하 방지
-
-            except Exception as e:
-                print(f"❌ 잡코리아 {page}페이지 오류: {e}")
-                continue
 
     def crawl_saramin(self, keyword="대기업", pages=3):
         """사람인에서 채용공고 크롤링"""
@@ -196,9 +137,6 @@ if __name__ == "__main__":
 
     # 검색 키워드 설정
     keyword = "무역"  # 원하는 키워드로 변경 가능
-
-    # 잡코리아 크롤링 (3페이지)
-    crawler.crawl_jobkorea(keyword=keyword, pages=3)
 
     # 사람인 크롤링 (3페이지)
     crawler.crawl_saramin(keyword=keyword, pages=3)
