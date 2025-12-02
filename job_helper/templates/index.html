@@ -1,0 +1,41 @@
+# 메인 화면
+
+{% extends "base.html" %}
+{% block content %}
+<div class="p-5 mb-4 bg-white rounded-3 shadow-sm text-center">
+    <h1>{{ t('welcome_prefix') }}{{ seeker.name }}{{ t('welcome_suffix') }}</h1>
+    <p class="lead">{{ t('service_intro') }}</p>
+    <hr class="my-4">
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card text-white bg-success mb-3">
+                <div class="card-header">TOEIC</div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ seeker.toeic }}점</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info mb-3">
+                <div class="card-header">TOPIK</div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ seeker.topik }}급</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header">나의 강점</div>
+                <div class="card-body">
+                    {% for s in seeker.major_strengths %}
+                        <span class="badge bg-secondary">{{ s }}</span>
+                    {% else %}
+                        <span class="text-muted">프로필을 설정해주세요.</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <a class="btn btn-primary btn-lg" href="/jobs" role="button">직무 추천 받기 &raquo;</a>
+</div>
+{% endblock %}

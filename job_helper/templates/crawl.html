@@ -1,0 +1,31 @@
+# 채용 공고 검색 화면
+
+{% extends "base.html" %}
+{% block content %}
+<h2>🔍 {{ t('menu_crawl') }}</h2>
+<form method="POST" class="mb-4 d-flex gap-2">
+    <input type="text" name="keyword" class="form-control" value="{{ keyword }}" placeholder="검색어 (예: 중국어)">
+    <div class="form-check pt-2" style="width: 250px;">
+        <input class="form-check-input" type="checkbox" name="only_friendly" id="check1">
+        <label class="form-check-label" for="check1">유학생 우대만</label>
+    </div>
+    <button type="submit" class="btn btn-primary text-nowrap">검색 (사람인)</button>
+</form>
+
+{% if results %}
+<div class="list-group">
+    {% for job in results %}
+    <a href="{{ job.link }}" target="_blank" class="list-group-item list-group-item-action">
+        <div class="d-flex w-100 justify-content-between">
+            <h5 class="mb-1">{{ job.title }}</h5>
+            <small>{{ job.location }}</small>
+        </div>
+        <p class="mb-1 text-primary">{{ job.company }}</p>
+        {% if job.is_friendly %}
+        <span class="badge bg-success">유학생 친화 🌏</span>
+        {% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

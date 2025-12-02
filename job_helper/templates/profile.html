@@ -1,0 +1,45 @@
+# 프로필 입력 화면
+
+{% extends "base.html" %}
+{% block content %}
+<h2>👤 {{ t('menu_profile') }}</h2>
+<form method="POST" class="bg-white p-4 rounded shadow-sm">
+    <div class="mb-3">
+        <label class="form-label">이름 (Name)</label>
+        <input type="text" name="name" class="form-control" value="{{ seeker.name }}">
+    </div>
+    <div class="row mb-3">
+        <div class="col">
+            <label class="form-label">TOEIC 점수</label>
+            <input type="number" name="toeic" class="form-control" value="{{ seeker.toeic }}">
+        </div>
+        <div class="col">
+            <label class="form-label">TOPIK 급수</label>
+            <input type="number" name="topik" class="form-control" value="{{ seeker.topik }}">
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col">
+            <label class="form-label">한국어 실력 (1~5)</label>
+            <input type="number" name="korean_level" class="form-control" min="1" max="5" value="{{ seeker.korean_level }}">
+        </div>
+        <div class="col">
+            <label class="form-label">중국어 실력 (1~5)</label>
+            <input type="number" name="chinese_level" class="form-control" min="1" max="5" value="{{ seeker.chinese_level }}">
+        </div>
+        <div class="col">
+            <label class="form-label">코딩 실력 (1~5)</label>
+            <input type="number" name="coding_level" class="form-control" min="1" max="5" value="{{ seeker.coding_level }}">
+        </div>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">전공 강점 (쉼표로 구분)</label>
+        <input type="text" name="major_strengths" class="form-control" value="{{ ','.join(seeker.major_strengths) }}" placeholder="예: 생산, 품질, 데이터">
+    </div>
+    <div class="mb-3">
+        <label class="form-label">관심 직무 (쉼표로 구분)</label>
+        <input type="text" name="prefer_fields" class="form-control" value="{{ ','.join(seeker.prefer_fields) }}" placeholder="예: 마케팅, 물류">
+    </div>
+    <button type="submit" class="btn btn-success w-100">{{ t('save') }}</button>
+</form>
+{% endblock %}

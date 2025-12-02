@@ -1,0 +1,35 @@
+# 직무 추천 결과 화면
+
+{% extends "base.html" %}
+{% block content %}
+<h2>💼 {{ t('menu_jobs') }}</h2>
+<div class="alert alert-info">
+    내 역량(언어, 전공 등)을 분석하여 가장 적합한 직무를 추천합니다.
+</div>
+<table class="table table-hover bg-white rounded shadow-sm">
+    <thead class="table-light">
+        <tr>
+            <th>순위</th>
+            <th>직무명</th>
+            <th>매칭 점수</th>
+            <th>적합도</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for job in jobs %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ job.name }}</td>
+            <td>{{ job.score }}점</td>
+            <td>
+                <span class="badge {% if job.score >= 90 %}bg-success{% elif job.score >= 80 %}bg-primary{% else %}bg-secondary{% endif %}">
+                    {{ job.match }}
+                </span>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-center">프로필을 먼저 입력해주세요.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

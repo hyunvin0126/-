@@ -1,0 +1,76 @@
+# 지원 현황 관리 화면
+
+{% extends "base.html" %}
+{% block content %}
+<h2>📝 {{ t('menu_apply') }}</h2>
+
+<div class="card mb-4">
+    <div class="card-header">새 지원 내역 추가</div>
+    <div class="card-body">
+        <form method="POST" class="row g-3">
+            <div class="col-md-6">
+                <input type="text" name="company" class="form-control" placeholder="회사명" required>
+            </div>
+            <div class="col-md-6">
+                <input type="text" name="job_title" class="form-control" placeholder="지원 직무" required>
+            </div>
+            <div class="col-md-4">
+                <select name="company_type" class="form-select">
+                    <option value="중견/중소">중견/중소</option>
+                    <option value="대기업">대기업</option>
+                    <option value="공기업">공기업</option>
+                    <option value="외국계">외국계</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <select name="status" class="form-select">
+                    <option value="지원완료">지원완료</option>
+                    <option value="서류합격">서류합격</option>
+                    <option value="면접진행">면접진행</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <input type="number" name="toeic_cut" class="form-control" placeholder="토익 컷 (공기업용)">
+            </div>
+            <div class="col-12">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" name="is_public" id="is_public">
+                    <label class="form-check-label" for="is_public">공기업 여부</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" name="foreigner_friendly" id="foreigner">
+                    <label class="form-check-label" for="foreigner">유학생 우대</label>
+                </div>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary">추가하기</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<table class="table bg-white shadow-sm">
+    <thead>
+        <tr>
+            <th>회사명</th>
+            <th>직무</th>
+            <th>유형</th>
+            <th>상태</th>
+            <th>분석 결과</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for app in apps %}
+        <tr>
+            <td>{{ app.company }}</td>
+            <td>{{ app.job_title }}</td>
+            <td>{{ app.company_type }}</td>
+            <td>
+                <span class="badge bg-secondary">{{ app.status }}</span>
+            </td>
+            <td>{{ app.analysis_result }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
