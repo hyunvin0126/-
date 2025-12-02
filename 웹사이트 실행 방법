@@ -1,0 +1,5 @@
+1. 파일을 다운받습니다. 터미널(CMD창)에서 job_helper 경로를 입력하고 pip install flask requests beautifulsoup4 명령어를 입력합니다. (pc에 파이썬이 설치되어있지 않으면 실행 안됩니다)
+(예시) PS C:\Users\이동훈\OneDrive - 한밭대학교\바탕 화면\job_helper> pip install flask requests beautifulsoup4
+2. python app.py 명령어를 입력하여 서버를 실행합니다. ctrl+마우스 우클릭으로 주소로 들어갑니다.
+(예시) PS C:\Users\이동훈\OneDrive - 한밭대학교\바탕 화면\job_helper> python app.py
+3. <종료방법> ctrl+c 를 눌러 서버를 종료합니다. or 터미널 창을 닫습니다.
