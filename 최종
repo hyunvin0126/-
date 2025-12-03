@@ -36,7 +36,7 @@ TEXT: Dict[str, Dict[str, str]] = {
         "menu_2": "2. 직무 추천 + 직무별 역량 분석",
         "menu_3": "3. 지원 현황 & 공기업 토익 컷 자동 조회/분석",
         "menu_4": "4. 최신 채용공고 보기 (사람인, 중국인 유학생 필터)",
-        "menu_6": "6. 언어 설정 (한국어/중국어)",
+        "menu_5": "5. 언어 설정 (한국어/중국어)",
         "menu_0": "0. 종료",
         "prompt_choice": "메뉴를 선택하세요: ",
         "invalid_choice": "유효한 번호를 입력하세요.",
@@ -114,7 +114,7 @@ TEXT: Dict[str, Dict[str, str]] = {
         "menu_2": "2. 职位推荐 + 职位能力分析",
         "menu_3": "3. 投递记录 & 公企业 TOEIC 分数线自动分析",
         "menu_4": "4. 最新招聘信息查看（Saramin，适合中国留学生）",
-        "menu_6": "6. 语言设置（韩文/中文）",
+        "menu_5": "5. 语言设置（韩文/中文）",
         "menu_0": "0. 退出",
         "prompt_choice": "请选择菜单: ",
         "invalid_choice": "请输入有效的编号。",
@@ -1107,7 +1107,7 @@ def main() -> None:
         print(t("menu_2"))
         print(t("menu_3"))
         print(t("menu_4"))
-        print(t("menu_6"))
+        print(t("menu_5"))
         print(t("menu_0"))
         print("==========================================")
         choice = input(t("prompt_choice")).strip()
@@ -1120,7 +1120,7 @@ def main() -> None:
             handle_apply()
         elif choice == "4":
             handle_crawling()
-        elif choice == "6":
+        elif choice == "5":
             handle_language_setting()
         elif choice == "0":
             print("\n" + t("exit_msg") + "\n")
